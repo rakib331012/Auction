@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Real-Time Auction Tracker</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js"></script>
     <style>
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
         .fade-in { animation: fadeIn 0.3s ease-in; }
@@ -82,17 +81,22 @@
     </div>
 
     <script>
-        // Connect to the backend
-        const socket = io();
-
-        // Team colors
+        // Team colors for visual distinction
         const teamColors = ['bg-red-500', 'bg-blue-500', 'bg-green-500', 'bg-yellow-500', 'bg-purple-500', 'bg-pink-500'];
 
-        let teams = [];
+        // Initialize teams
+        let teams = [
+            { name: "Team 1", coins: 10000 },
+            { name: "Team 2", coins: 10000 },
+            { name: "Team 3", coins: 10000 },
+            { name: "Team 4", coins: 10000 },
+            { name: "Team 5", coins: 10000 },
+            { name: "Team 6", coins: 10000 }
+        ];
         let bidHistory = [];
         let pendingBid = null;
 
-        // Update UI
+        // Populate UI
         function updateUI() {
             const teamTable = document.getElementById("teamTable");
             const teamSelect = document.getElementById("teamSelect");
@@ -102,6 +106,7 @@
             assignTeamSelect.innerHTML = '<option value="" disabled selected>Select Team</option>';
 
             teams.forEach((team, index) => {
+                // Team table row
                 const row = document.createElement("tr");
                 row.className = "hover:bg-gray-50 fade-in";
                 row.innerHTML = `
@@ -114,17 +119,20 @@
                 `;
                 teamTable.appendChild(row);
 
+                // Team select option for bidding
                 const bidOption = document.createElement("option");
                 bidOption.value = index;
                 bidOption.textContent = team.name;
                 teamSelect.appendChild(bidOption);
 
+                // Team select option for assigning coins
                 const assignOption = document.createElement("option");
                 assignOption.value = index;
                 assignOption.textContent = team.name;
                 assignTeamSelect.appendChild(assignOption);
             });
 
+            // Update history (now includes bids and coin assignments)
             const bidHistoryList = document.getElementById("bidHistory");
             bidHistoryList.innerHTML = bidHistory.length
                 ? bidHistory.map((entry, i) => `<li class="${i % 2 ? 'bg-gray-50' : 'bg-white'} p-2 rounded">${entry}</li>`).join("")
@@ -134,7 +142,8 @@
         // Update team name
         function updateTeamName(index, newName) {
             if (newName.trim()) {
-                socket.emit('updateTeamName', { index, name: newName.trim() });
+                teams[index].name = newName.trim();
+                updateUI();
             }
         }
 
@@ -165,8 +174,7 @@
             pendingBid = { teamIndex, bidAmount, bidItem };
             document.getElementById("confirmationText").textContent = 
                 `${teams[teamIndex].name} is bidding ${bidAmount} coins for "${bidItem}". Confirm?`;
-            document.getElementById("confirmationModal").classList.remove("hidden
-            ");
+            document.getElementById("confirmationModal").classList.remove("hidden");
         }
 
         // Hide modal
@@ -178,13 +186,17 @@
         // Confirm and place bid
         function confirmBid() {
             if (!pendingBid) return;
-            socket.emit('placeBid', pendingBid);
+            const { teamIndex, bidAmount, bidItem } = pendingBid;
+            teams[teamIndex].coins -= bidAmount;
+            const bidLog = `${teams[teamIndex].name} bid ${bidAmount} coins for "${bidItem}" at ${new Date().toLocaleTimeString()}`;
+            bidHistory.unshift(bidLog);
             document.getElementById("bidAmount").value = "";
             document.getElementById("bidItem").value = "";
             hideModal();
+            updateUI();
         }
 
-        // Assign coins
+        // Assign coins to a team
         function assignCoins() {
             const teamIndex = parseInt(document.getElementById("assignTeamSelect").value);
             const assignAmount = parseInt(document.getElementById("assignAmount").value);
@@ -202,24 +214,22 @@
                 return;
             }
 
-            socket.emit('assignCoins', { teamIndex, assignAmount });
+            teams[teamIndex].coins += assignAmount;
+            const assignLog = `${teams[teamIndex].name} received ${assignAmount} coins at ${new Date().toLocaleTimeString()}`;
+            bidHistory.unshift(assignLog);
             document.getElementById("assignAmount").value = "";
+            updateUI();
         }
 
         // Reset auction
         function resetAuction() {
             if (!confirm("Reset the auction? This will clear all bids and coin assignments, resetting coins to 10,000.")) return;
-            socket.emit('resetAuction');
+            teams.forEach(team => team.coins = 10000);
+            bidHistory = [];
+            updateUI();
         }
 
-        // Socket.IO event listeners
-        socket.on('updateState', ({ teams: newTeams, bidHistory: newBidHistory }) => {
-            teams = newTeams;
-            bidHistory = newBidHistory;
-            updateUI();
-        });
-
-        // Initialize UI (will update once connected to server)
+        // Initialize UI
         updateUI();
     </script>
 </body>
